@@ -38,7 +38,7 @@
 | Design | 确定 `exceptions / textio / normalize / tokenize / similarity / engine / cli` 七层结构，以及"越靠下越纯"的原则 |
 | Coding | 实现全部模块；随后用 176 个测试先行验证，再做性能优化 |
 | Code Review | 通读全部代码，把 `%` 格式化统一改成 f-string，清理不可达的防御分支，补全所有函数文档字符串 |
-| Test | 从 176 个用例扩到 212 个；用覆盖率报告反查未覆盖行，逐条补测试或删死代码，最终达到 100% |
+| Test | 从 176 个用例扩到 219 个；用覆盖率报告反查未覆盖行，逐条补测试或删死代码，最终达到 100% |
 | Test Report | 整理覆盖率报告、性能基准、权重标定实验的结论 |
 | Size Measurement | 统计代码行数、用例数、覆盖率、耗时等量化指标 |
 | Postmortem | 复盘估时偏差与踩过的坑（见下） |

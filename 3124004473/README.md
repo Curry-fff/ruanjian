@@ -8,7 +8,7 @@
 
 * 语言：**Python 3**，入口文件 `main.py`
 * 依赖：**零第三方运行时依赖**，只用标准库
-* 单元测试：**212 个**，行覆盖率 **100%**
+* 单元测试：**219 个**，行覆盖率 **100%**
 * 代码质量：`pylint` **10.00/10**，`flake8` **0 告警**
 * 真实语料单次比对耗时：**0.022 秒**（时限 5 秒）
 
@@ -113,7 +113,7 @@ python main.py orig.txt orig_add.txt ans.txt --verbose
 ## 三、运行测试
 
 ```bash
-python -m pytest tests -q          # 212 个用例
+python -m pytest tests -q          # 219 个用例
 python scripts/run_coverage.py     # 覆盖率报告 → docs/coverage/coverage.txt
 ```
 
@@ -144,7 +144,7 @@ python scripts/profile_run.py   # cProfile 性能分析 + 火焰图
 │   ├── similarity.py          相似度度量（覆盖率 / 余弦 / Jaccard / 位并行 LCS）
 │   ├── engine.py              查重引擎（多信号加权融合）
 │   └── cli.py                 命令行解析与退出码映射
-├── tests/                     212 个单元测试 + 真实语料夹具
+├── tests/                     219 个单元测试 + 真实语料夹具
 ├── scripts/                   开发期工具（标定 / 基准 / 覆盖率 / 性能分析）
 └── docs/
     ├── PSP.md                 PSP 表格（预估 vs 实际）
