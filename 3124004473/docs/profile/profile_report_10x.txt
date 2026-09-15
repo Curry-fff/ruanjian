@@ -1,0 +1,43 @@
+语料规模：原文 105110 字符，抄袭版 122740 字符（放大 10 倍）
+平均单轮耗时：0.0881 秒
+
+         39568 function calls in 0.092 seconds
+
+   Ordered by: internal time
+   List reduced from 35 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        6    0.061    0.010    0.061    0.010 {built-in method _collections._count_elements}
+        2    0.018    0.009    0.018    0.009 {built-in method unicodedata.normalize}
+        2    0.005    0.003    0.005    0.003 {method 'sub' of 're.Pattern' objects}
+        3    0.002    0.001    0.004    0.001 plagcheck/similarity.py:28(coverage)
+    25763    0.002    0.000    0.002    0.000 {method 'get' of 'dict' objects}
+        7    0.001    0.000    0.001    0.000 {built-in method builtins.sum}
+        1    0.001    0.001    0.002    0.002 plagcheck/similarity.py:70(cosine)
+        2    0.001    0.000    0.001    0.000 {method 'lower' of 'str' objects}
+        1    0.000    0.000    0.092    0.092 plagcheck/engine.py:191(compare_texts)
+     8105    0.000    0.000    0.000    0.000 plagcheck/similarity.py:99(<genexpr>)
+     5565    0.000    0.000    0.000    0.000 plagcheck/similarity.py:98(<genexpr>)
+        6    0.000    0.000    0.062    0.010 plagcheck/tokenize.py:26(ngram_frequencies)
+
+
+         39568 function calls in 0.092 seconds
+
+   Ordered by: cumulative time
+   List reduced from 35 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.092    0.092 plagcheck/engine.py:191(compare_texts)
+        1    0.000    0.000    0.067    0.067 plagcheck/engine.py:229(_compute_components)
+        6    0.000    0.000    0.062    0.010 plagcheck/tokenize.py:26(ngram_frequencies)
+        6    0.000    0.000    0.061    0.010 __init__.py:595(__init__)
+        6    0.000    0.000    0.061    0.010 __init__.py:669(update)
+        6    0.061    0.010    0.061    0.010 {built-in method _collections._count_elements}
+        2    0.000    0.000    0.024    0.012 plagcheck/normalize.py:41(normalize)
+        2    0.018    0.009    0.018    0.009 {built-in method unicodedata.normalize}
+        2    0.005    0.003    0.005    0.003 {method 'sub' of 're.Pattern' objects}
+        3    0.002    0.001    0.004    0.001 plagcheck/similarity.py:28(coverage)
+        1    0.001    0.001    0.002    0.002 plagcheck/similarity.py:70(cosine)
+    25763    0.002    0.000    0.002    0.000 {method 'get' of 'dict' objects}
+
+

@@ -1,0 +1,43 @@
+语料规模：原文 10511 字符，抄袭版 12274 字符（放大 1 倍）
+平均单轮耗时：0.0222 秒
+
+         58324 function calls in 0.028 seconds
+
+   Ordered by: internal time
+   List reduced from 39 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.012    0.012    0.014    0.014 plagcheck/similarity.py:145(lcs_length)
+        6    0.006    0.001    0.006    0.001 {built-in method _collections._count_elements}
+    44510    0.003    0.000    0.003    0.000 {method 'get' of 'dict' objects}
+        3    0.002    0.001    0.003    0.001 plagcheck/similarity.py:28(coverage)
+        2    0.002    0.001    0.002    0.001 {built-in method unicodedata.normalize}
+        7    0.001    0.000    0.001    0.000 {built-in method builtins.sum}
+        2    0.001    0.000    0.001    0.000 {method 'sub' of 're.Pattern' objects}
+        1    0.001    0.001    0.002    0.002 plagcheck/similarity.py:70(cosine)
+     8104    0.000    0.000    0.000    0.000 plagcheck/similarity.py:99(<genexpr>)
+        1    0.000    0.000    0.028    0.028 plagcheck/engine.py:191(compare_texts)
+        1    0.000    0.000    0.014    0.014 plagcheck/similarity.py:214(sequence_ratio)
+     5564    0.000    0.000    0.000    0.000 plagcheck/similarity.py:98(<genexpr>)
+
+
+         58324 function calls in 0.028 seconds
+
+   Ordered by: cumulative time
+   List reduced from 39 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.028    0.028 plagcheck/engine.py:191(compare_texts)
+        1    0.000    0.000    0.026    0.026 plagcheck/engine.py:229(_compute_components)
+        1    0.000    0.000    0.014    0.014 plagcheck/similarity.py:214(sequence_ratio)
+        1    0.012    0.012    0.014    0.014 plagcheck/similarity.py:145(lcs_length)
+        6    0.000    0.000    0.006    0.001 plagcheck/tokenize.py:26(ngram_frequencies)
+        6    0.000    0.000    0.006    0.001 __init__.py:595(__init__)
+        6    0.000    0.000    0.006    0.001 __init__.py:669(update)
+        6    0.006    0.001    0.006    0.001 {built-in method _collections._count_elements}
+        3    0.002    0.001    0.003    0.001 plagcheck/similarity.py:28(coverage)
+    44510    0.003    0.000    0.003    0.000 {method 'get' of 'dict' objects}
+        2    0.000    0.000    0.002    0.001 plagcheck/normalize.py:41(normalize)
+        1    0.001    0.001    0.002    0.002 plagcheck/similarity.py:70(cosine)
+
+

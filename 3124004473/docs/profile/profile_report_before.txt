@@ -1,0 +1,43 @@
+语料规模：原文 105110 字符，抄袭版 122740 字符（放大 10 倍）
+平均单轮耗时：0.1015 秒
+
+         642396 function calls in 0.193 seconds
+
+   Ordered by: internal time
+   List reduced from 37 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        6    0.062    0.010    0.062    0.010 {built-in method _collections._count_elements}
+        2    0.058    0.029    0.123    0.062 plagcheck/normalize.py:26(normalize)
+   187490    0.020    0.000    0.020    0.000 {method 'lower' of 'str' objects}
+        2    0.017    0.009    0.017    0.009 {built-in method unicodedata.normalize}
+   227850    0.016    0.000    0.016    0.000 {method 'isalnum' of 'str' objects}
+   187490    0.010    0.000    0.010    0.000 {method 'append' of 'list' objects}
+        3    0.002    0.001    0.003    0.001 plagcheck/similarity.py:29(coverage)
+    25763    0.002    0.000    0.002    0.000 {method 'get' of 'dict' objects}
+        1    0.002    0.002    0.193    0.193 plagcheck/engine.py:189(compare_texts)
+        2    0.001    0.001    0.001    0.001 {method 'join' of 'str' objects}
+        7    0.001    0.000    0.001    0.000 {built-in method builtins.sum}
+        1    0.001    0.001    0.002    0.002 plagcheck/similarity.py:71(cosine)
+
+
+         642396 function calls in 0.193 seconds
+
+   Ordered by: cumulative time
+   List reduced from 37 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.002    0.002    0.193    0.193 plagcheck/engine.py:189(compare_texts)
+        2    0.058    0.029    0.123    0.062 plagcheck/normalize.py:26(normalize)
+        1    0.000    0.000    0.068    0.068 plagcheck/engine.py:227(_compute_components)
+        6    0.000    0.000    0.062    0.010 plagcheck/tokenize.py:26(ngram_frequencies)
+        6    0.000    0.000    0.062    0.010 __init__.py:595(__init__)
+        6    0.000    0.000    0.062    0.010 __init__.py:669(update)
+        6    0.062    0.010    0.062    0.010 {built-in method _collections._count_elements}
+   187490    0.020    0.000    0.020    0.000 {method 'lower' of 'str' objects}
+        2    0.017    0.009    0.017    0.009 {built-in method unicodedata.normalize}
+   227850    0.016    0.000    0.016    0.000 {method 'isalnum' of 'str' objects}
+   187490    0.010    0.000    0.010    0.000 {method 'append' of 'list' objects}
+        3    0.002    0.001    0.003    0.001 plagcheck/similarity.py:29(coverage)
+
+
