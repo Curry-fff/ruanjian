@@ -40,11 +40,15 @@ __all__ = [
 
 #: 启用顺序敏感度量（:func:`plagcheck.similarity.sequence_ratio`）的文本长度上限。
 #:
-#: ``SequenceMatcher`` 的最坏时间复杂度是输入长度的乘积，对一篇几万字的
-#: 论文直接调用会让单次比对轻易突破 5 秒时限。因此超过该阈值时程序会
-#: 主动放弃这一路信号，并把它的权重按比例分摊给 n-gram 信号——这一步在
-#: 长文本上几乎不损失精度，因为 n-gram 覆盖率在大样本下本身就很稳。
-MAX_SEQUENCE_CHARS: int = 20_000
+#: 该度量基于最长公共子序列，耗时随长度增长得比 n-gram 快，因此必须设上限
+#: 以免单次比对突破 5 秒时限。之所以能放宽到 5 万字符：顺序信号已从
+#: ``difflib`` 换成位并行 LCS，在 34k 字符上耗时 0.237 s（``difflib`` 需要
+#: 8.46 s），5 万字符约 0.5 s，仍在预算之内。
+#:
+#: 超过该阈值时程序会主动放弃这一路信号，并把它的权重按比例分摊给
+#: n-gram 信号——这一步在长文本上几乎不损失精度，因为 n-gram 覆盖率在
+#: 大样本下本身就很稳。
+MAX_SEQUENCE_CHARS: int = 50_000
 
 #: 参与计算的 n-gram 窗口长度。
 #:
@@ -90,7 +94,7 @@ class SimilarityWeights:
     def __post_init__(self) -> None:
         for name, value in self.as_dict().items():
             if value < 0.0:
-                raise ValueError("权重不能为负数：%s=%r" % (name, value))
+                raise ValueError(f"权重不能为负数：{name}={value!r}")
         if sum(self.as_dict().values()) <= 0.0:
             raise ValueError("权重之和必须大于 0")
 
@@ -130,18 +134,16 @@ class DuplicationResult:
     def summary(self) -> str:
         """生成人类可读的分项报告，供 ``--verbose`` 打印到标准错误输出。"""
         lines = [
-            "重复率: %.2f" % self.duplication,
-            "原文归一化字符数: %d" % self.original_characters,
-            "抄袭版归一化字符数: %d" % self.copy_characters,
-            "顺序敏感信号已启用: %s" % ("是" if self.sequence_evaluated else "否（文本过长）"),
-            "耗时: %.3f 秒" % self.elapsed_seconds,
+            f"重复率: {self.duplication:.2f}",
+            f"原文归一化字符数: {self.original_characters}",
+            f"抄袭版归一化字符数: {self.copy_characters}",
+            "顺序敏感信号已启用: " + ("是" if self.sequence_evaluated else "否（文本过长）"),
+            f"耗时: {self.elapsed_seconds:.3f} 秒",
             "分项得分:",
         ]
         for name in sorted(self.components):
-            lines.append(
-                "  %-18s 得分 %.4f  权重 %.2f"
-                % (name, self.components[name], self.weights.get(name, 0.0))
-            )
+            weight = self.weights.get(name, 0.0)
+            lines.append(f"  {name:<18} 得分 {self.components[name]:.4f}  权重 {weight:.2f}")
         return "\n".join(lines)
 
 
