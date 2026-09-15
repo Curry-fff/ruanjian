@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import os
-from typing import Final
 
 from .exceptions import (
     EmptyDocumentError,
@@ -33,7 +32,14 @@ __all__ = [
 
 #: 单个输入文件的字节上限。超过它就有突破 2048 MB 内存上限的风险，
 #: 因此在读取之前先行拦截（作业约束：内存占用不得超过 2048 MB）。
-MAX_INPUT_BYTES: Final[int] = 512 * 1024 * 1024
+#:
+#: 这些模块级常量刻意写成"大写名 + 类型注解"，而没有引入
+#: ``typing.Final``：本机的代码质量分析工具是 pylint 2.16，其依赖的
+#: astroid 无法解析 Python 3.12 标准库 ``typing.py`` 中的 PEP 695
+#: 类型别名语法，只要有任何模块 ``import typing``，pylint 就会以
+#: ``Fatal error (astroid-error)`` 崩溃。去掉这一个可选装饰后，整个
+#: 包在 pylint 下可以做到零告警（见 docs/design.md 的说明）。
+MAX_INPUT_BYTES: int = 512 * 1024 * 1024
 
 #: 解码试探顺序。
 #:
@@ -41,7 +47,7 @@ MAX_INPUT_BYTES: Final[int] = 512 * 1024 * 1024
 #: 一个不可见字符混进正文）；``utf-8`` 严格模式用于识别真正的 UTF-8；
 #: 之后才是中文语料常见的 ``gb18030``（GBK 的超集，覆盖面更广）。
 #: 最后的 ``utf-16`` 需要 BOM 才能正确解码，所以放在最后兜底。
-DETECT_ENCODINGS: Final[tuple[str, ...]] = (
+DETECT_ENCODINGS: tuple = (
     "utf-8-sig",
     "utf-8",
     "gb18030",
@@ -50,7 +56,7 @@ DETECT_ENCODINGS: Final[tuple[str, ...]] = (
 )
 
 #: 答案文件的小数位数——题目要求"精确到小数点后两位"。
-ANSWER_PRECISION: Final[int] = 2
+ANSWER_PRECISION: int = 2
 
 
 def read_text_file(path: str) -> str:
@@ -71,34 +77,31 @@ def read_text_file(path: str) -> str:
     absolute_path = os.path.abspath(path)
 
     if not os.path.exists(absolute_path):
-        raise InputPathError("输入文件不存在：%s" % absolute_path)
+        raise InputPathError(f"输入文件不存在：{absolute_path}")
     if not os.path.isfile(absolute_path):
-        raise InputPathError("输入路径不是普通文件：%s" % absolute_path)
+        raise InputPathError(f"输入路径不是普通文件：{absolute_path}")
 
     try:
         size = os.path.getsize(absolute_path)
     except OSError as error:  # pragma: no cover - 极端文件系统故障
-        raise InputReadError(
-            "无法获取文件大小：%s（%s）" % (absolute_path, error)
-        ) from error
+        raise InputReadError(f"无法获取文件大小：{absolute_path}（{error}）") from error
 
     if size == 0:
-        raise EmptyDocumentError("输入文件为空（0 字节）：%s" % absolute_path)
+        raise EmptyDocumentError(f"输入文件为空（0 字节）：{absolute_path}")
     if size > MAX_INPUT_BYTES:
+        megabytes = size / 1024 / 1024
+        limit_megabytes = MAX_INPUT_BYTES / 1024 / 1024
         raise InputReadError(
-            "输入文件过大：%s（%.1f MB，上限 %.0f MB）"
-            % (absolute_path, size / 1024 / 1024, MAX_INPUT_BYTES / 1024 / 1024)
+            f"输入文件过大：{absolute_path}（{megabytes:.1f} MB，上限 {limit_megabytes:.0f} MB）"
         )
 
     try:
         with open(absolute_path, "rb") as handle:
             raw = handle.read()
     except OSError as error:
-        raise InputReadError(
-            "读取文件失败：%s（%s）" % (absolute_path, error)
-        ) from error
+        raise InputReadError(f"读取文件失败：{absolute_path}（{error}）") from error
     except MemoryError as error:  # pragma: no cover - 需要极端环境
-        raise InputReadError("读取文件时内存不足：%s" % absolute_path) from error
+        raise InputReadError(f"读取文件时内存不足：{absolute_path}") from error
 
     return decode_bytes(raw)
 
@@ -145,7 +148,7 @@ def format_answer(duplication: float) -> str:
     或 ``1.0000000000000002`` 之类的越界输出。
     """
     clamped = min(1.0, max(0.0, float(duplication)))
-    return "%.*f" % (ANSWER_PRECISION, clamped)
+    return f"{clamped:.{ANSWER_PRECISION}f}"
 
 
 def write_answer_file(path: str, duplication: float) -> str:
@@ -174,15 +177,13 @@ def write_answer_file(path: str, duplication: float) -> str:
             os.makedirs(parent, exist_ok=True)
         except OSError as error:
             raise OutputWriteError(
-                "答案文件所在目录不存在且无法创建：%s（%s）" % (parent, error)
+                f"答案文件所在目录不存在且无法创建：{parent}（{error}）"
             ) from error
 
     try:
         with open(absolute_path, "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
     except OSError as error:
-        raise OutputWriteError(
-            "写入答案文件失败：%s（%s）" % (absolute_path, error)
-        ) from error
+        raise OutputWriteError(f"写入答案文件失败：{absolute_path}（{error}）") from error
 
     return text
