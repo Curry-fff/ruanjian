@@ -31,6 +31,7 @@ import cProfile
 import io
 import os
 import pstats
+import re
 import sys
 import time
 
@@ -46,6 +47,9 @@ OUTPUT_DIR = os.path.join(PACKAGE_ROOT, "docs", "profile")
 
 #: 性能分析图里展示的函数数量。
 TOP_N = 12
+
+#: 匹配 Windows 绝对路径，并单独捕获尾部的 ``:行号(函数名)``。
+_ABSOLUTE_PATH = re.compile(r"([A-Za-z]:\\[^\s:]+)(:\d+\([^)]*\))?")
 
 
 def load_corpus(repeat: int):
@@ -79,13 +83,40 @@ def collect_stats(original, copy, repeat: int):
     return profiler
 
 
+def _shorten_paths(text: str) -> str:
+    """把报告里的绝对路径改写成不含本机目录结构的短路径。
+
+    为什么必须做这一步：``cProfile`` / ``pstats`` 打印的是代码对象的
+    ``co_filename``，也就是**本机的绝对路径**。如果原样写进仓库，就会把
+    开发者的目录结构（用户名、盘符、项目所在文件夹名）一起提交上去——
+    既泄露本地环境，也毫无信息价值（读者只关心是哪个文件的哪个函数）。
+
+    规则：
+        * 项目内的文件 → 相对 ``PACKAGE_ROOT`` 的路径，如
+          ``plagcheck/similarity.py``；
+        * 其它文件（标准库、第三方库）→ 只保留文件名，如
+          ``collections/__init__.py``。
+
+    末尾的 ``:行号(函数名)`` 会被完整保留。
+    """
+    def _replace(match):
+        path, suffix = match.group(1), match.group(2) or ""
+        if path.startswith(PACKAGE_ROOT):
+            shown = os.path.relpath(path, PACKAGE_ROOT).replace("\\", "/")
+        else:
+            shown = os.path.basename(path)
+        return shown + suffix
+
+    return _ABSOLUTE_PATH.sub(_replace, text)
+
+
 def format_report(profiler, limit: int = TOP_N) -> str:
-    """生成"独占时间 / 累计时间"两份榜单。"""
+    """生成"独占时间 / 累计时间"两份榜单（路径已脱敏）。"""
     buffer = io.StringIO()
     stats = pstats.Stats(profiler, stream=buffer)
     stats.sort_stats("tottime").print_stats(limit)
     stats.sort_stats("cumulative").print_stats(limit)
-    return buffer.getvalue()
+    return _shorten_paths(buffer.getvalue())
 
 
 def render_chart(profiler, target: str, limit: int = TOP_N) -> bool:
