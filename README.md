@@ -14,7 +14,7 @@
 ## 论文查重项目
 
 * **GitHub 仓库**：<https://github.com/Curry-fff/ruanjian>
-* **博客地址**：<!-- 粘贴你的博客园 / CSDN 文章链接 -->
+* **博客地址**：<https://www.cnblogs.com/00Lyf/p/22980140>
 * **程序入口**：`3124004473/main.py`
 * **实现语言**：Python 3（零第三方运行时依赖）
 
