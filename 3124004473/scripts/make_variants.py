@@ -99,7 +99,7 @@ def build_variants(original: str, seed: int = DEFAULT_SEED) -> dict:
         "orig_0.8_del.txt": make_del(original, rng),
     }
     for distance in DISORDER_DISTANCES:
-        variants["orig_0.8_dis_%d.txt" % distance] = make_disorder(
+        variants[f"orig_0.8_dis_{distance}.txt"] = make_disorder(
             original, rng, distance
         )
     return variants
@@ -118,6 +118,7 @@ def read_text(path: str) -> str:
 
 
 def main(argv: list) -> int:
+    """命令行入口：``make_variants.py <原文文件> <输出目录>``。"""
     if len(argv) != 3:
         print(__doc__)
         print("用法: python scripts/make_variants.py <原文文件> <输出目录>")
@@ -131,7 +132,7 @@ def main(argv: list) -> int:
         target = os.path.join(output_dir, name)
         with open(target, "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
-        print("已生成 %-22s 字符数 %6d" % (name, len(text)))
+        print(f"已生成 {name:<22} 字符数 {len(text):6d}")
 
     return 0
 
