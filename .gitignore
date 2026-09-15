@@ -1,0 +1,43 @@
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+
+# 虚拟环境
+.venv/
+venv/
+env/
+.python-version
+
+# 测试与覆盖率产物
+.pytest_cache/
+_test_tmp/
+.pytest_tmp/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# 性能分析产物
+*.prof
+*.pstats
+
+# 编辑器 / IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# 操作系统
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 注意：本仓库【故意】不忽略 *.txt，
+# 因为 tests/data 下的测试语料需要入库。
