@@ -30,6 +30,7 @@ from plagcheck.engine import (
     PlagiarismChecker,
     SimilarityWeights,
 )
+from plagcheck.exceptions import InputPathError
 
 #: 作业题目给出的样例原文与抄袭版。
 SAMPLE_ORIGINAL = "今天是星期天，天气晴，今天晚上我要去看电影。"
@@ -49,11 +50,13 @@ BASE = (
 LIGHT_PLAGIARISM = BASE.replace("显著进展", "明显进展")
 
 #: 中度抄袭：中间两句被改写成完全不同的内容。
+_HEAD_END = BASE.index("该方法首先")
+_TAIL_START = BASE.index("最后使用")
 MEDIUM_PLAGIARISM = (
-    BASE[: BASE.index("该方法首先")]
+    BASE[:_HEAD_END]
     + "我们设计了一套完全不同的流程来处理这类问题。"
     + "该流程依靠统计频次而不依赖任何神经网络结构。"
-    + BASE[BASE.index("最后使用") :]
+    + BASE[_TAIL_START:]
 )
 
 #: 重度抄袭：只保留首句，其余全部是新内容。
@@ -129,6 +132,7 @@ class TestMonotonicity:
     """单调性：损坏越严重，分数越低。这是查重器的核心可用性。"""
 
     def test_score_decreases_as_plagiarism_gets_heavier(self):
+        """轻 → 中 → 重要严格递减，这是查重器最基本的可用性。"""
         checker = PlagiarismChecker()
         light = checker.compare_texts(BASE, LIGHT_PLAGIARISM).duplication
         medium = checker.compare_texts(BASE, MEDIUM_PLAGIARISM).duplication
@@ -206,7 +210,7 @@ class TestEmptyAndBoundaryInputs:
         """抄袭版为空（归一化后无内容）→ 约定 0.00，不抛异常。"""
         result = PlagiarismChecker().compare_texts(BASE, "")
         assert result.duplication == 0.0
-        assert result.components == {}
+        assert not result.components
 
     def test_empty_original_scores_zero(self):
         """原文为空 → 0.00。"""
@@ -258,7 +262,7 @@ class TestAdaptiveSequenceSignal:
 
     def test_default_threshold_is_documented_value(self):
         """默认阈值是一个有出处的常数，不是随手写的魔法数。"""
-        assert MAX_SEQUENCE_CHARS == 20_000
+        assert MAX_SEQUENCE_CHARS == 50_000
         assert PlagiarismChecker().max_sequence_chars == MAX_SEQUENCE_CHARS
 
 
@@ -266,6 +270,7 @@ class TestSimilarityWeights:
     """权重对象自身的校验。"""
 
     def test_default_weights_sum_to_one(self):
+        """默认权重之和必须是 1.0，否则融合公式的分母会失衡。"""
         assert sum(SimilarityWeights().as_dict().values()) == pytest.approx(1.0)
 
     def test_negative_weight_is_rejected(self):
@@ -297,6 +302,32 @@ class TestSimilarityWeights:
         result = checker.compare_texts(BASE, LIGHT_PLAGIARISM)
         assert result.duplication == pytest.approx(result.components["bigram_coverage"])
 
+    def test_zero_weight_object_falls_back_to_zero(self):
+        """权重对象把所有信号都置零时，必须返回 0.0 而不是除零崩溃。
+
+        ``SimilarityWeights`` 本身拒绝全零权重，但 ``PlagiarismChecker``
+        接受任何提供 ``as_dict()`` 的对象，因此这条防御分支是可达的，
+        也必须被测试钉住。
+        """
+
+        class ZeroWeights:
+            """把所有信号权重都置零的桩对象。"""
+
+            @staticmethod
+            def as_dict():
+                """返回全零权重表，用来触发融合层的防御分支。"""
+                return {
+                    "sequence_ratio": 0.0,
+                    "unigram_coverage": 0.0,
+                    "bigram_coverage": 0.0,
+                    "trigram_coverage": 0.0,
+                    "bigram_cosine": 0.0,
+                }
+
+        result = PlagiarismChecker(weights=ZeroWeights()).compare_texts(BASE, BASE)
+        assert result.duplication == 0.0
+        assert not result.weights
+
     def test_weights_are_immutable(self):
         """权重对象是只读的，防止运行期被意外改写。"""
         weights = SimilarityWeights()
@@ -321,9 +352,11 @@ class TestResultObject:
         assert "否（文本过长）" in result.summary()
 
     def test_elapsed_seconds_is_positive(self):
+        """耗时字段必须是正数，供 --verbose 报告使用。"""
         assert PlagiarismChecker().compare_texts(BASE, BASE).elapsed_seconds > 0.0
 
     def test_result_is_a_dataclass_instance(self):
+        """引擎返回的是结构化的 DuplicationResult，而不是裸浮点数。"""
         assert isinstance(PlagiarismChecker().compare_texts(BASE, BASE), DuplicationResult)
 
 
@@ -331,6 +364,7 @@ class TestCompareFiles:
     """文件级接口。"""
 
     def test_compare_files_reads_and_scores(self, write_file):
+        """文件级接口：读盘 + 打分，结果应与直接比对文本一致。"""
         original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
         copy = write_file(SAMPLE_COPY, name="orig_add.txt")
         result = PlagiarismChecker().compare_files(original, copy)
@@ -346,7 +380,5 @@ class TestCompareFiles:
 
     def test_compare_files_propagates_input_errors(self, tmp_path):
         """文件层异常要原样向上传递，不能被引擎吞掉。"""
-        from plagcheck.exceptions import InputPathError
-
         with pytest.raises(InputPathError):
             PlagiarismChecker().compare_files(str(tmp_path / "missing.txt"), str(tmp_path))

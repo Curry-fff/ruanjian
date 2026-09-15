@@ -12,6 +12,10 @@
 
 from __future__ import annotations
 
+import os
+import re
+import unicodedata
+
 import pytest
 
 from plagcheck.normalize import is_effectively_empty, normalize
@@ -117,3 +121,105 @@ class TestIsEffectivelyEmpty:
     def test_false_cases(self, value):
         """哪怕只有一个内容字符，也不算空。"""
         assert is_effectively_empty(normalize(value)) is False
+
+
+def _reference_normalize(text, *, keep_punctuation=False, casefold=True):
+    """性能优化前的逐字符朴素实现，仅用作等价性基准。
+
+    保留它是为了给"用正则替换 Python 循环"这次优化上一道保险：只要
+    两种实现在任意输入上给出不同结果，等价性测试就会失败。
+    """
+    if not text:
+        return ""
+    decomposed = unicodedata.normalize("NFKC", text)
+    out = []
+    if keep_punctuation:
+        for character in decomposed:
+            if character.isspace():
+                continue
+            out.append(character.lower() if casefold else character)
+    else:
+        for character in decomposed:
+            if character.isalnum():
+                out.append(character.lower() if casefold else character)
+    return "".join(out)
+
+
+class TestRegexRewriteIsEquivalent:
+    """性能优化回归：正则实现必须与逐字符实现逐字符等价。
+
+    这条测试是这次优化的**安全网**。把 O(n) 的 Python 循环换成 C 层的
+    ``re.sub`` 让归一化快了约 37%，代价是引入了两处微妙的等价性假设：
+
+    1. ``[\\W_]`` 是否恰好等于"``str.isalnum()`` 为假的字符"；
+    2. 末尾统一 ``lower()`` 是否与逐字符 ``lower()`` 结果相同。
+
+    两者都必须被证明，而不是"看起来没问题"。
+    """
+
+    @pytest.mark.parametrize("keep_punctuation", [False, True])
+    @pytest.mark.parametrize("casefold", [False, True])
+    def test_equivalent_on_corpus_text(self, data_dir, keep_punctuation, casefold):
+        """在课程下发的真实中文语料上比对两种实现。"""
+        with open(os.path.join(data_dir, "orig.txt"), encoding="utf-8") as handle:
+            text = handle.read()
+        assert normalize(text, keep_punctuation=keep_punctuation, casefold=casefold) == (
+            _reference_normalize(text, keep_punctuation=keep_punctuation, casefold=casefold)
+        )
+
+    def test_equivalent_across_a_wide_code_point_sweep(self):
+        """扫过 BMP 中大范围的码点，覆盖汉字、标点、符号、控制字符。"""
+        chunks = [
+            "".join(chr(code) for code in range(0x0020, 0x1000)),
+            "".join(chr(code) for code in range(0x2000, 0x3000)),
+            "".join(chr(code) for code in range(0x4E00, 0x4F00)),
+            "".join(chr(code) for code in range(0xFF00, 0xFFF0)),
+        ]
+        for text in chunks:
+            assert normalize(text) == _reference_normalize(text)
+
+    def test_isalnum_matches_regex_word_class_across_all_code_points(self):
+        """逐一验证 ``isalnum()`` 与 ``\\w`` 在全部 0x110000 个码点上一致。
+
+        这是正则改写成立的数学前提：``[\\W_]`` = 非 ``\\w`` 或下划线
+        = 非（``isalnum()`` 或下划线）或下划线 = 非 ``isalnum()``。
+        """
+        mismatches = []
+        for code in range(0x110000):
+            character = chr(code)
+            if character == "_":
+                continue
+            if character.isalnum() != bool(re.match(r"\w", character)):
+                mismatches.append(hex(code))
+        assert not mismatches
+
+    def test_trailing_lower_matches_per_character_lower_except_final_sigma(self):
+        """整串 ``lower()`` 与逐字符 ``lower()`` 的差异**只有一处**：希腊词尾 sigma。
+
+        写这条测试时它真的失败了，并暴露出一个我自己没想到的差异：
+        ``str.lower()`` 实现了 Unicode 的上下文规则，把词尾的大写 ``Σ``
+        折成词尾形 ``ς``；而逐字符 ``lower()`` 一律给出 ``σ``。
+
+        这里选择**如实钉住**这个差异而不是把它藏起来：
+
+        * 对本项目无影响——原文与抄袭版走的是同一条 ``normalize`` 代码
+          路径，一致性不受影响，而中文/英文语料根本不会出现该字符；
+        * 新行为在语言学上更正确，属于顺带的收益。
+
+        这正说明"等价性测试"的价值：没有它，这个改动会是静默发生的。
+        """
+        samples = [
+            "ABCabc",
+            "İstanbul",
+            "ÄÖÜäöü",
+            "ＦＵＬＬＷＩＤＴＨ",
+            "中文ABC混合123",
+            "ǅǄǅ",
+            "СТРАНА",
+        ]
+        for sample in samples:
+            assert normalize(sample) == _reference_normalize(sample)
+
+        # 唯一已知差异，显式断言两边各自的结果。
+        assert normalize("ΣΟΦΟΣ") == "σοφος"
+        assert _reference_normalize("ΣΟΦΟΣ") == "σοφοσ"

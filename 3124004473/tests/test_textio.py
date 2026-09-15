@@ -86,9 +86,11 @@ class TestDecodeBytesFallbacks:
     """解码兜底路径：任何字节串都不能让程序抛异常。"""
 
     def test_bom_is_stripped(self):
+        """UTF-8 BOM 必须被吃掉，不能作为一个字符混进正文。"""
         assert decode_bytes(b"\xef\xbb\xbfabc") == "abc"
 
     def test_utf16_bom_is_honoured(self):
+        """带 BOM 的 UTF-16 要按 UTF-16 解码，而不是当成本地编码硬解。"""
         assert decode_bytes("汉字".encode("utf-16")) == "汉字"
 
     def test_truncated_utf16_bom_falls_back_instead_of_raising(self):
@@ -159,6 +161,39 @@ class TestReadTextFileFailures:
         monkeypatch.setattr("builtins.open", real_open)
         assert excinfo.value.exit_code == 4
 
+    def test_size_query_failure_raises_input_read_error(self, write_file, monkeypatch):
+        """``os.path.getsize`` 失败（例如统计信息拿不到）也要被翻译。
+
+        场景：文件在 ``exists()`` 与 ``getsize()`` 之间被删除，或网络盘
+        掉线。底层会抛 ``OSError``，绝不能让它以原始形态冒到顶层。
+        """
+        path = write_file("内容", encoding="utf-8")
+
+        def failing_getsize(_path):
+            raise OSError(13, "Permission denied")
+
+        monkeypatch.setattr(os.path, "getsize", failing_getsize)
+        with pytest.raises(InputReadError) as excinfo:
+            read_text_file(path)
+        assert excinfo.value.exit_code == 4
+        assert "无法获取文件大小" in excinfo.value.message
+
+    def test_out_of_memory_while_reading_raises_input_read_error(self, write_file, monkeypatch):
+        """读盘时内存不足 → InputReadError，而不是让 MemoryError 逃逸。
+
+        评测环境有 2048 MB 内存上限，这条路径必须存在且被验证。
+        """
+        path = write_file("内容", encoding="utf-8")
+
+        def failing_open(*args, **kwargs):
+            raise MemoryError("模拟内存耗尽")
+
+        monkeypatch.setattr("builtins.open", failing_open)
+        with pytest.raises(InputReadError) as excinfo:
+            read_text_file(path)
+        assert excinfo.value.exit_code == 4
+        assert "内存不足" in excinfo.value.message
+
 
 class TestFormatAnswer:
     """答案格式化：题目要求精确到小数点后两位。"""
@@ -176,9 +211,18 @@ class TestFormatAnswer:
         ],
     )
     def test_two_decimal_places(self, value, expected):
+        """各种取值都必须格式化到恰好两位小数。"""
         assert format_answer(value) == expected
 
-    @pytest.mark.parametrize("value,expected", [(-0.5, "0.00"), (-1e9, "0.00"), (1.5, "1.00"), (42.0, "1.00")])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (-0.5, "0.00"),
+            (-1e9, "0.00"),
+            (1.5, "1.00"),
+            (42.0, "1.00"),
+        ],
+    )
     def test_out_of_range_values_are_clamped(self, value, expected):
         """越界值被夹紧，绝不会输出 "-0.00" 或 "1.00" 以外的怪值。"""
         assert format_answer(value) == expected
@@ -241,4 +285,5 @@ class TestWriteAnswerFile:
     def test_uses_utf8_and_lf_newline_convention(self, answer_path):
         """写入结果是纯 ASCII，任何编码都能正确还原。"""
         write_answer_file(answer_path, 0.07)
-        assert open(answer_path, "rb").read().decode("ascii") == "0.07"
+        with open(answer_path, "rb") as handle:
+            assert handle.read().decode("ascii") == "0.07"

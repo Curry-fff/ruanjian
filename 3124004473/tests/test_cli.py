@@ -15,7 +15,9 @@
 
 from __future__ import annotations
 
+import io
 import os
+import sys
 
 import pytest
 
@@ -31,6 +33,7 @@ class TestSuccessfulRun:
     """正常路径。"""
 
     def test_three_arguments_produce_answer_file(self, write_file, answer_path):
+        """三个位置参数齐全时，退出码 0，答案文件内容为两位小数。"""
         original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
         copy = write_file(SAMPLE_COPY, name="orig_add.txt")
 
@@ -40,7 +43,7 @@ class TestSuccessfulRun:
         with open(answer_path, encoding="utf-8") as handle:
             assert handle.read() == "0.71"
 
-    def test_answer_matches_library_result(self, write_file, answer_path, data_dir):
+    def test_answer_matches_library_result(self, answer_path, data_dir):
         """命令行输出必须与直接调用引擎的结果完全一致。"""
         original = os.path.join(data_dir, "orig.txt")
         copy = os.path.join(data_dir, "orig_add.txt")
@@ -48,7 +51,7 @@ class TestSuccessfulRun:
         assert main([original, copy, answer_path]) == 0
         expected = PlagiarismChecker().compare_files(original, copy).duplication
         with open(answer_path, encoding="utf-8") as handle:
-            assert handle.read() == "%.2f" % expected
+            assert handle.read() == f"{expected:.2f}"
 
     def test_identical_files_give_one(self, write_file, answer_path):
         """原文与自己比对必须是 1.00。"""
@@ -124,12 +127,13 @@ class TestArgumentErrors:
         assert excinfo.value.code == 2
         assert "usage" in capsys.readouterr().err.lower()
 
-    def test_too_few_arguments_exits_with_code_two(self, capsys):
+    def test_too_few_arguments_exits_with_code_two(self):
+        """只给一个参数 → 用法错误，退出码 2。"""
         with pytest.raises(SystemExit) as excinfo:
             main(["only-one.txt"])
         assert excinfo.value.code == 2
 
-    def test_too_many_arguments_exits_with_code_two(self, capsys):
+    def test_too_many_arguments_exits_with_code_two(self):
         """多给参数同样属于用法错误，不能静默忽略。"""
         with pytest.raises(SystemExit) as excinfo:
             main(["a.txt", "b.txt", "c.txt", "d.txt"])
@@ -162,22 +166,26 @@ class TestInputFailures:
     """输入故障：必须是"受控退出"，而不是崩溃。"""
 
     def test_missing_original_returns_code_three(self, write_file, answer_path, capsys):
+        """原文文件不存在 → 退出码 3，错误信息含“不存在”。"""
         copy = write_file(SAMPLE_COPY, name="copy.txt")
         assert main([os.path.join(os.path.dirname(copy), "missing.txt"), copy, answer_path]) == 3
         assert "不存在" in capsys.readouterr().err
 
     def test_missing_copy_returns_code_three(self, write_file, answer_path, capsys):
+        """抄袭版文件不存在 → 同样退出码 3。"""
         original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
         missing = os.path.join(os.path.dirname(original), "missing.txt")
         assert main([original, missing, answer_path]) == 3
         assert "不存在" in capsys.readouterr().err
 
     def test_directory_as_input_returns_code_three(self, write_file, answer_path, tmp_path, capsys):
+        """把目录当论文传进来 → 退出码 3，而不是 IsADirectoryError。"""
         original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
         assert main([original, str(tmp_path), answer_path]) == 3
         assert "不是普通文件" in capsys.readouterr().err
 
     def test_empty_input_file_returns_code_five(self, write_file, answer_path, capsys):
+        """0 字节输入文件 → 退出码 5。"""
         original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
         empty = write_file("", name="empty.txt")
         assert main([original, empty, answer_path]) == 5
@@ -189,6 +197,60 @@ class TestInputFailures:
         copy = write_file(SAMPLE_COPY, name="copy.txt")
         assert main([original, copy, str(tmp_path)]) == 6
         assert "答案文件" in capsys.readouterr().err
+
+    def test_unexpected_exception_returns_code_one(self, write_file, answer_path, capsys, monkeypatch):
+        """任何未预期的异常都必须变成退出码 1 + 诊断信息，而不是 traceback。
+
+        作业的扣分项之一就是"发生异常退出"。这里用一个必然会炸的桩来
+        验证兜底逻辑真的生效——否则用户会看到一整屏调用栈，而不是
+        "哪里出了问题"。
+        """
+
+        class ExplodingChecker:
+            """compare_files 直接抛非项目异常的桩。"""
+
+            @staticmethod
+            def compare_files(_original, _copy):
+                """无论输入是什么都直接炸，用来触发顶层兜底。"""
+                raise RuntimeError("模拟意料之外的内部故障")
+
+        monkeypatch.setattr("plagcheck.cli.PlagiarismChecker", ExplodingChecker)
+
+        original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
+        copy = write_file(SAMPLE_COPY, name="copy.txt")
+
+        assert main([original, copy, answer_path]) == 1
+        captured = capsys.readouterr()
+        assert "未预期的错误" in captured.err
+        assert "RuntimeError" in captured.err
+        assert "Traceback" not in captured.err
+
+    def test_closed_stdout_stream_does_not_break_startup(self, write_file, answer_path, monkeypatch):
+        """标准输出已被关闭时仍要能正常跑完。
+
+        入口会尝试把 stdout/stderr 的编码错误策略放宽；如果流已关闭，
+        ``reconfigure`` 抛 ``ValueError``，必须被吞掉而不是让程序启动失败。
+        评测方重定向输出时完全可能出现这种状态。
+        """
+        closed_stream = io.TextIOWrapper(io.BytesIO())
+        closed_stream.close()
+        monkeypatch.setattr(sys, "stdout", closed_stream)
+
+        original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
+        copy = write_file(SAMPLE_COPY, name="copy.txt")
+
+        assert main([original, copy, answer_path]) == 0
+        with open(answer_path, encoding="utf-8") as handle:
+            assert handle.read() == "0.71"
+
+    def test_stream_without_reconfigure_is_tolerated(self, write_file, answer_path, monkeypatch):
+        """流不是 ``io.TextIOWrapper`` 时（例如测试替身）必须被跳过。"""
+        monkeypatch.setattr(sys, "stdout", io.StringIO())
+
+        original = write_file(SAMPLE_ORIGINAL, name="orig.txt")
+        copy = write_file(SAMPLE_COPY, name="copy.txt")
+
+        assert main([original, copy, answer_path]) == 0
 
     def test_no_traceback_ever_escapes(self, write_file, answer_path, tmp_path):
         """坏参数只能变成退出码，绝不能抛异常。"""

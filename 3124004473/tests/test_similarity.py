@@ -12,9 +12,21 @@
 
 from __future__ import annotations
 
+import os
+import random
+
 import pytest
 
-from plagcheck.similarity import cosine, coverage, jaccard, sequence_ratio
+from plagcheck.normalize import normalize
+from plagcheck.similarity import (
+    _popcount,
+    cosine,
+    coverage,
+    jaccard,
+    lcs_length,
+    sequence_ratio,
+)
+from plagcheck.textio import read_text_file
 
 
 class TestCoverage:
@@ -99,29 +111,53 @@ class TestJaccard:
     """多重集 Jaccard 系数（用于报告，不参与融合）。"""
 
     def test_identical_mappings_score_one(self):
+        """完全一致 → 1.0。"""
         assert jaccard({"ab": 2}, {"ab": 2}) == 1.0
 
     def test_disjoint_mappings_score_zero(self):
+        """毫无交集 → 0.0。"""
         assert jaccard({"ab": 1}, {"xy": 1}) == 0.0
 
     def test_both_empty_scores_zero(self):
+        """两侧都为空 → 0.0（约定，而非未定义）。"""
         assert jaccard({}, {}) == 0.0
+
+    def test_all_zero_counts_scores_zero(self):
+        """并集为 0 的边界：字典非空但计数全为 0。
+
+        此时不能返回 ``0/0``（会抛 ZeroDivisionError），必须走除零保护
+        分支返回 0.0。
+        """
+        assert jaccard({"ab": 0}, {}) == 0.0
+        assert jaccard({}, {"ab": 0}) == 0.0
 
     def test_multiset_semantics(self):
         """Σmin/Σmax：(1+1)/(1+4) = 0.4。"""
         assert jaccard({"ab": 1, "bc": 1}, {"ab": 1, "bc": 4}) == pytest.approx(0.4)
 
 
+class TestPopcountBoundary:
+    """位并行 LCS 依赖的 popcount 原语。"""
+
+    def test_matches_builtin_for_various_values(self):
+        """与 ``bin().count("1")`` 逐一比对，确保兜底实现与 C 实现一致。"""
+        for value in [0, 1, 2, 3, 255, 256, 65535, (1 << 200) - 1, (1 << 200) + 1]:
+            assert _popcount(value) == bin(value).count("1")
+
+
 class TestSequenceRatio:
     """顺序敏感的序列匹配率。"""
 
     def test_identical_text_scores_one(self):
+        """逐字相同 → 1.0。"""
         assert sequence_ratio("今天是星期天", "今天是星期天") == 1.0
 
     def test_completely_different_text_scores_zero(self):
+        """没有任何公共字符 → 0.0。"""
         assert sequence_ratio("abcd", "wxyz") == 0.0
 
     def test_empty_input_scores_zero(self):
+        """空串参与比对时一律记 0.0，不能抛异常。"""
         assert sequence_ratio("", "abc") == 0.0
         assert sequence_ratio("abc", "") == 0.0
         assert sequence_ratio("", "") == 0.0
@@ -175,3 +211,118 @@ def test_frequency_metrics_stay_within_unit_interval(metric):
     for left, right in samples:
         value = metric(left, right)
         assert 0.0 <= value <= 1.0
+
+
+class TestLcsLength:
+    """位并行 LCS 实现——顺序敏感信号的核心。
+
+    这是性能优化替换掉 ``difflib`` 的那一段代码，因此除了常规边界，
+    还必须证明它与教科书式的动态规划实现**结果完全一致**，否则"加速"
+    就变成了"悄悄改变了算法"。
+    """
+
+    @staticmethod
+    def _dp_reference(text_a: str, text_b: str) -> int:
+        """教科书版 O(n·m) 动态规划，仅用于测试比对。"""
+        previous = [0] * (len(text_b) + 1)
+        for char_a in text_a:
+            current = [0]
+            for index, char_b in enumerate(text_b, start=1):
+                if char_a == char_b:
+                    current.append(previous[index - 1] + 1)
+                else:
+                    current.append(max(previous[index], current[index - 1]))
+            previous = current
+        return previous[-1]
+
+    def test_identical_strings(self):
+        """完全相同的串，LCS 就是它本身的长度。"""
+        assert lcs_length("今天是星期天", "今天是星期天") == 6
+
+    def test_no_common_characters(self):
+        """没有公共字符 → 0。"""
+        assert lcs_length("abcd", "wxyz") == 0
+
+    def test_textbook_examples(self):
+        """教科书上的经典用例，可与手工推导核对。"""
+        assert lcs_length("abcde", "ace") == 3
+        assert lcs_length("abc", "ac") == 2
+        assert lcs_length("abc", "def") == 0
+
+    def test_empty_inputs(self):
+        """任一为空 → 0。"""
+        assert lcs_length("", "") == 0
+        assert lcs_length("", "abc") == 0
+        assert lcs_length("abc", "") == 0
+
+    def test_is_symmetric(self):
+        """LCS 与参数顺序无关（内部会自行选择较短的一侧作竖排）。"""
+        left, right = "甲乙丙丁戊", "甲丙戊庚"
+        assert lcs_length(left, right) == lcs_length(right, left)
+
+    def test_never_exceeds_shorter_length(self):
+        """LCS 长度不可能超过较短串的长度。"""
+        samples = [
+            ("aaaa", "aa"),
+            ("abcdef", "fedcba"),
+            ("今天天气真好", "天气"),
+            ("x" * 50, "y" * 30),
+        ]
+        for left, right in samples:
+            assert lcs_length(left, right) <= min(len(left), len(right))
+
+    def test_subsequence_of_itself(self):
+        """自己是自己的最长公共子序列。"""
+        assert lcs_length("abcdefg", "abcdefg") == 7
+
+    @pytest.mark.parametrize(
+        "left,right",
+        [
+            ("", ""),
+            ("a", ""),
+            ("a", "a"),
+            ("a", "b"),
+            ("abcd", "wxyz"),
+            ("abcdef", "fedcba"),
+            ("banana", "atana"),
+            ("今天天气很好", "今天气很好"),
+            ("一二三四五六七八九十", "十九八七六五四三二一"),
+            ("ab" * 30, "ba" * 30),
+        ],
+    )
+    def test_matches_dynamic_programming_reference(self, left, right):
+        """与小规模 DP 参考实现逐一比对，证明确实是最长公共子序列。"""
+        assert lcs_length(left, right) == self._dp_reference(left, right)
+
+    def test_matches_reference_on_random_inputs(self):
+        """随机化对拍：150 组随机串全部与 DP 参考实现一致。"""
+        rng = random.Random(20240917)
+        alphabet = "abcdefgh"
+        for _ in range(150):
+            left = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 24)))
+            right = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 24)))
+            assert lcs_length(left, right) == self._dp_reference(left, right)
+
+    def test_matches_reference_on_cjk_alphabet(self):
+        """随机化对拍（中文小字符集，容易撞出长公共子序列）。"""
+        rng = random.Random(4321)
+        alphabet = "今天气很好的是一不"
+        for _ in range(100):
+            left = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 40)))
+            right = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 40)))
+            assert lcs_length(left, right) == self._dp_reference(left, right)
+
+    def test_real_corpus_value_is_stable(self, data_dir):
+        """真实语料的 LCS 回归值。
+
+        优化前后该值必须相同：``difflib`` 与位并行 LCS 在高度相似的
+        文本上给出完全一致的 8493，这正是可以放心替换的依据。
+        """
+        original = normalize(read_text_file(os.path.join(data_dir, "orig.txt")))
+        copy = normalize(read_text_file(os.path.join(data_dir, "orig_add.txt")))
+        assert lcs_length(original, copy) == 8493
+
+    def test_scales_to_deep_input(self):
+        """较长的输入不得触发递归或整数溢出（位并行实现无递归）。"""
+        text = "".join(chr(0x4E00 + index % 500) for index in range(4000))
+        assert lcs_length(text, text) == len(text)
