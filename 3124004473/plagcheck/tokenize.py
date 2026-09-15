@@ -49,7 +49,7 @@ def ngram_frequencies(text: str, n: int) -> FrequencyMap:
         ``docs/profile`` 中的性能对比。
     """
     if n < 1:
-        raise ValueError("n-gram 长度必须 >= 1，实际为 %r" % (n,))
+        raise ValueError(f"n-gram 长度必须 >= 1，实际为 {n!r}")
 
     length = len(text)
     if length == 0:

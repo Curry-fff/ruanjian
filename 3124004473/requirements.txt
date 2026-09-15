@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 # 本程序【不依赖任何第三方库】，只使用 Python 3 标准库：
 #
-#   argparse, collections, dataclasses, difflib, math, os, sys, time, unicodedata
+#   argparse, collections, dataclasses, math, os, re, sys, time, unicodedata
 #
 # 因此这里没有任何需要安装的运行时依赖，直接运行即可：
 #

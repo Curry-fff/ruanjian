@@ -27,7 +27,7 @@ from .exceptions import (
     PlagCheckError,
 )
 from .normalize import normalize
-from .similarity import cosine, coverage, jaccard, sequence_ratio
+from .similarity import cosine, coverage, jaccard, lcs_length, sequence_ratio
 from .textio import format_answer, read_text_file, write_answer_file
 from .tokenize import ngram_frequencies, total_frequency
 
@@ -56,6 +56,7 @@ __all__ = [
     "cosine",
     "jaccard",
     "sequence_ratio",
+    "lcs_length",
     # 文件读写
     "read_text_file",
     "write_answer_file",

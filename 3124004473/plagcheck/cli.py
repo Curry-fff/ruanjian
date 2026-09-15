@@ -82,11 +82,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.verbose:
             print(result.summary(), file=sys.stderr)
     except PlagCheckError as error:
-        print("%s: 错误：%s" % (PROGRAM_NAME, error.message), file=sys.stderr)
+        print(f"{PROGRAM_NAME}: 错误：{error.message}", file=sys.stderr)
         return error.exit_code
-    except Exception as error:  # noqa: BLE001 - 兜底，保证永不异常退出
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        # 兜底：任何未预期的异常都必须变成"带诊断信息的退出码"，而不是
+        # 把 traceback 抛给评测方（作业的扣分项之一是"发生异常退出"）。
         print(
-            "%s: 未预期的错误：%s: %s" % (PROGRAM_NAME, type(error).__name__, error),
+            f"{PROGRAM_NAME}: 未预期的错误：{type(error).__name__}: {error}",
             file=sys.stderr,
         )
         return EXIT_UNEXPECTED_ERROR
@@ -123,4 +125,4 @@ def _require_non_empty(value: str, label: str) -> None:
     会指向当前工作目录，非常难排查，因此在这里提前拦截。
     """
     if not value or not value.strip():
-        raise ArgumentError("%s 的路径不能为空字符串" % label)
+        raise ArgumentError(f"{label} 的路径不能为空字符串")
