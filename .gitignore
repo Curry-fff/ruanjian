@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 程序运行时生成的文件
+Exercises.txt
+Answers.txt
+Grade.txt
+
+# 测试与调试产生的临时目录
+.tmp/
+.testtmp/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 性能分析产物（报告与图已入库，供博文使用；只忽略中间文件）
+bench/*.prof
+bench/_io_tmp/
